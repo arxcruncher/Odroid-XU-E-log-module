@@ -5,15 +5,12 @@ Kernel module logging CPU frequency, temperature and power consumption for Odroi
 
 ## Installation
 
-- Copy the files "exynos_thermal.h" and "exynos_thermal.c" into "include/linux/platform_data/" and "drivers/thermal/exynos_thermal.c", respectivily. Recompile your kernel.
-- Compile the module against the kernel like usual:
-
+- Copy the files "exynos_thermal.h" and "exynos_thermal.c" into "include/linux/platform_data/" and "drivers/thermal/exynos_thermal.c", respectivily. Recompile your kernel (see http://odroid.com/dokuwiki/doku.php?id=en:odroid-xu).
+- Compile the module against the kernel like usual
 ```
 make
 ```
-
 - Insert the module:
-
 ```
 sudo insmod energy.ko
 ```
