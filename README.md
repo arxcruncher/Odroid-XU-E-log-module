@@ -8,17 +8,27 @@ Kernel module logging CPU frequency, temperature and power consumption for Odroi
 - Copy the files "exynos_thermal.h" and "exynos_thermal.c" into "include/linux/platform_data/" and "drivers/thermal/exynos_thermal.c", respectivily. Recompile your kernel.
 - Compile the module against the kernel like usual:
 
-```make```
+```
+make
+```
 
 - Insert the module:
 
-```sudo insmod energy.ko```
+```
+sudo insmod energy.ko
+```
 
 ## Reading the log
 
 A directory will be created in the /proc filesystem named "/proc/paristech" including a file "read" which displays the log.
-
-```cat /proc/paristech/read```
+```
+cat /proc/paristech/read
+```
+Before you can read values from the energy and power chips you must enable them via
+```
+echo 1 > /sys/bus/i2c/drivers/INA231/4-0045/enable
+echo 1 > /sys/bus/i2c/drivers/INA231/4-0040/enable
+```
 
 Be aware that the module's memory is only 5 seconds, so you will have to read out the log at least once per 5 seconds not to loose any information.
 
