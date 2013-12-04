@@ -78,10 +78,20 @@ struct proc_dir_entry *my_proc_status = NULL;
 #define EXYNOS_TMU_COUNT 4
 #define EXYNOS_TMU_DEF_CODE_TO_TEMP_OFFSET 50
 
-extern struct exynos_tmu_data* exynos_thermal_get_tmu_data(void);
-extern struct list_head* ina231_get_sensor_list(void);
+//ParisTech
+struct measurement_reading {
+	unsigned int a7_cur_uA;
+	unsigned int a7_cur_uV;
+	unsigned int a7_cur_uW;
+	unsigned int a15_cur_uA;
+	unsigned int a15_cur_uV;
+	unsigned int a15_cur_uW;
+};
 
-static struct list_head* sensor_list;
+extern struct exynos_tmu_data* exynos_thermal_get_tmu_data(void);
+extern void ina231_get_sensor_values(struct measurement_reading *my_measurement_reading);
+
+LIST_HEAD(sensor_list);
 static struct exynos_tmu_data* data;
 
 static void exynos_thermal_get_value(struct my_temp_data *my_data)
@@ -130,10 +140,23 @@ out:
 static ssize_t write_power(char *buf)
 {	
 	ssize_t add_length = 0;
-		
-	//add_length += sprintf(&buf[add_length], " %u %u %u", temp, error1, error2);
-
-out:
+	struct measurement_reading my_measurement_reading;
+	
+	ina231_get_sensor_values(&my_measurement_reading);
+	
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a7_cur_uA);
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a7_cur_uV);
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a7_cur_uW);
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a15_cur_uA);
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a15_cur_uV);
+	add_length += sprintf(&buf[add_length], " %u", \
+		my_measurement_reading.a15_cur_uW);
+	
 	return add_length;
 }
 
@@ -187,21 +210,7 @@ static void mykmod_work_handler(struct work_struct *w)
 }
 
 static int log_show_data(struct seq_file *m, void *v)
-{
-	spin_lock(&my_lock);
-	
-	// Print the lines that were not printed before
-	
-	while(index_last_read != index_log) {
-		seq_printf(m, "%s", my_log[index_last_read]);
-		
-		index_last_read++;
-		if(index_last_read >= MAX_ENTRIES)
-			index_last_read = 0;
-	}
-	
-	spin_unlock(&my_lock);
-	
+{	
 	return 0;
 }
 
@@ -249,6 +258,25 @@ static ssize_t log_config_write (struct file *file, const char *buffer, size_t l
 	return procfs_buffer_size;
 }
 
+ssize_t my_read (struct file *fp, char __user *buf, size_t count, loff_t *offset)  
+{
+	ssize_t add_length = 0;
+	char tmpbuf[MAX_ENTRIES*MAX_ENTRY_LENGTH];
+	
+	// Print the lines that were not printed before
+	spin_lock(&my_lock);
+	while(index_last_read != index_log) {
+		add_length += sprintf(&tmpbuf[add_length], "%s", my_log[index_last_read]);
+		
+		index_last_read++;
+		if(index_last_read >= MAX_ENTRIES)
+			index_last_read = 0;
+	}
+	spin_unlock(&my_lock);
+	
+	return simple_read_from_buffer(buf, count, offset, tmpbuf, add_length);
+}  
+
 
 static int log_status_open(struct inode *inode, struct  file *file)
 {
@@ -258,8 +286,7 @@ static int log_status_open(struct inode *inode, struct  file *file)
 static const struct file_operations read_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = log_read_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
+	.read = my_read,
 	.release = single_release,
 };
 
@@ -267,16 +294,13 @@ static const struct file_operations status_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = log_status_open,
 	.read = seq_read,
-	.llseek = seq_lseek,
 	.release = single_release,
 };
 
 static const struct file_operations config_proc_fops = {
 	.owner = THIS_MODULE,
 	.open = log_config_open,
-	.write = log_config_write,
 	.read = seq_read,
-	.llseek = seq_lseek,
 	.release = single_release,
 };
 
@@ -297,16 +321,8 @@ static void make_proc_dir(void)
 	my_proc_status = proc_create("status", 0644, my_proc_dir, &status_proc_fops);   
 }
 
-struct  global_sensor    {
-    struct ina231_sensor    *p;
-    struct list_head        list;
-};
-
 static int __init log_init(void)
-{
-	struct global_sensor    *gsensor;
-    struct list_head        *list_head;
-    
+{   
 	index_last_read = 0;
 	index_log = 0;
 	index_total = 0;
@@ -317,17 +333,6 @@ static int __init log_init(void)
 	spin_lock_init(&my_lock);
 	
 	data = exynos_thermal_get_tmu_data();
-	sensor_list = ina231_get_sensor_list();
-	
-	if(!sensor_list)
-		printk("ParisTech: unable to find sensor list!\n");
-
-	list_head = sensor_list->next;
-	while(!(list_head = list_head->next))
-    {
-        //gsensor = list_entry(list_head_t, struct global_sensor, list);
-        printk("ParisTech: find match sensor struct : name = %s\n", gsensor->p->pd->name);
-    }
 	
 	// Initialize workqueue
 	my_sampling_frequency = msecs_to_jiffies(SAMPLING_FREQ);
